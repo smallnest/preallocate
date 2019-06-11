@@ -1,0 +1,6 @@
+.idea/
+dist/
+*.sh
+rice-box.go
+stick
+vendor/
