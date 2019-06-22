@@ -1,6 +1,7 @@
 # preallocate
 [![GoDoc](https://godoc.org/git.sr.ht/~tslocum/preallocate?status.svg)](https://godoc.org/git.sr.ht/~tslocum/preallocate)
 [![builds.sr.ht status](https://builds.sr.ht/~tslocum/preallocate.svg)](https://builds.sr.ht/~tslocum/preallocate?)
+[![Donate](https://img.shields.io/liberapay/receives/rocketnine.space.svg?logo=liberapay)](https://liberapay.com/rocketnine.space)
 
 File preallocation library
 

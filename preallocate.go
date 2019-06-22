@@ -11,10 +11,11 @@ import (
 	"github.com/pkg/errors"
 )
 
-const BufferSize = 4 * 1024 * 1024 // 4 MiB
+// NullBufferSize determines the maximum size of NULL byte blocks written to
+// files when falling back to WriteSeeker.
+const NullBufferSize = 512 * 1024 // 512 KiB
 
-// File preallocates a file via syscall (when supported) or WriteSeeker().
-// The file's write offset must be set to the start of the file.
+// File preallocates a file via syscall (when supported) or WriteSeeker.
 func File(file *os.File, size int64) error {
 	if size < 0 {
 		return errors.New("invalid preallocation size")
@@ -23,27 +24,6 @@ func File(file *os.File, size int64) error {
 	}
 
 	return preallocFile(file, size)
-}
-
-// FilePath preallocates a file at path (see File).
-func FilePath(path string, size int64) (*os.File, error) {
-	if size < 0 {
-		return nil, errors.New("invalid preallocation size")
-	}
-
-	file, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		return nil, errors.Wrapf(err, "failed to open/create %s", path)
-	}
-
-	err = File(file, size)
-	if err != nil {
-		_ = file.Close()
-
-		return nil, err
-	}
-
-	return file, nil
 }
 
 // TempFile preallocates a temporary file (see File and ioutil.TempFile).
@@ -73,18 +53,23 @@ func WriteSeeker(w io.WriteSeeker, size int64) error {
 		err       error
 	)
 
-	if remaining > BufferSize {
-		b = make([]byte, BufferSize)
+	_, err = w.Seek(0, 0)
+	if err != nil {
+		return err
+	}
+
+	if remaining > NullBufferSize {
+		b = make([]byte, NullBufferSize)
 		for {
 			wrote, err = w.Write(b)
 			if err != nil {
 				return err
-			} else if int64(wrote) != BufferSize {
-				return errors.New(fmt.Sprintf("failed to preallocate file: write operation interrupted at %d/%d bytes", wrote, BufferSize))
+			} else if int64(wrote) != NullBufferSize {
+				return fmt.Errorf("failed to preallocate file: write operation interrupted at %d/%d bytes", wrote, NullBufferSize)
 			}
 
-			remaining -= BufferSize
-			if remaining < BufferSize {
+			remaining -= NullBufferSize
+			if remaining < NullBufferSize {
 				break
 			}
 		}
@@ -101,7 +86,7 @@ func WriteSeeker(w io.WriteSeeker, size int64) error {
 		if err != nil {
 			return err
 		} else if int64(wrote) != remaining {
-			return errors.New(fmt.Sprintf("failed to preallocate file: write operation interrupted at %d/%d bytes", wrote, remaining))
+			return fmt.Errorf("failed to preallocate file: write operation interrupted at %d/%d bytes", wrote, remaining)
 		}
 	}
 

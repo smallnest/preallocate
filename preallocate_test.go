@@ -3,7 +3,7 @@ package preallocate
 import (
 	"io/ioutil"
 	"os"
-	"path/filepath"
+	"path"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -11,10 +11,10 @@ import (
 
 var sizes = []int64{0, 1024, 16777220}
 
-func TestFilePath(t *testing.T) {
+func TestFile(t *testing.T) {
 	t.Parallel()
 	var (
-		file     *os.File
+		tmpFile  *os.File
 		fileInfo os.FileInfo
 		size     int64
 		err      error
@@ -24,19 +24,28 @@ func TestFilePath(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer os.Remove(tmpDir)
 
 	for _, size = range sizes {
-		file, err = FilePath(filepath.Join(tmpDir, "preallocate.test"), size)
+		tmpFile, err = os.OpenFile(path.Join(tmpDir, "preallocate.tmp"), os.O_CREATE|os.O_WRONLY, 0644)
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		fileInfo, err = file.Stat()
+		err = File(tmpFile, size)
 		if err != nil {
+			tmpFile.Close()
 			t.Fatal(err)
 		}
 
-		err = os.Remove(file.Name())
+		fileInfo, err = tmpFile.Stat()
+		if err != nil {
+			tmpFile.Close()
+			t.Fatal(err)
+		}
+
+		tmpFile.Close()
+		err = os.Remove(tmpFile.Name())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -62,14 +71,17 @@ func TestTempFile(t *testing.T) {
 
 		err = File(tmpFile, size)
 		if err != nil {
+			tmpFile.Close()
 			t.Fatal(err)
 		}
 
 		tmpFileInfo, err = tmpFile.Stat()
 		if err != nil {
+			tmpFile.Close()
 			t.Fatal(err)
 		}
 
+		tmpFile.Close()
 		err = os.Remove(tmpFile.Name())
 		if err != nil {
 			t.Fatal(err)
@@ -96,14 +108,17 @@ func TestWriteSeeker(t *testing.T) {
 
 		err = WriteSeeker(tmpFile, size)
 		if err != nil {
+			tmpFile.Close()
 			t.Fatal(err)
 		}
 
 		tmpFileInfo, err = tmpFile.Stat()
 		if err != nil {
+			tmpFile.Close()
 			t.Fatal(err)
 		}
 
+		tmpFile.Close()
 		err = os.Remove(tmpFile.Name())
 		if err != nil {
 			t.Fatal(err)
@@ -114,32 +129,37 @@ func TestWriteSeeker(t *testing.T) {
 }
 
 func BenchmarkWriteSeeker(b *testing.B) {
-	var (
-		tmpFile     *os.File
-		tmpFileInfo os.FileInfo
-		size        = int64(1677722000)
-		err         error
-	)
+	for n := 0; n < b.N; n++ {
+		var (
+			tmpFile     *os.File
+			tmpFileInfo os.FileInfo
+			size        = int64(67108860)
+			err         error
+		)
 
-	tmpFile, err = ioutil.TempFile("", "preallocate")
-	if err != nil {
-		b.Fatal(err)
+		tmpFile, err = ioutil.TempFile("", "preallocate")
+		if err != nil {
+			b.Fatal(err)
+		}
+
+		err = WriteSeeker(tmpFile, size)
+		if err != nil {
+			tmpFile.Close()
+			b.Fatal(err)
+		}
+
+		tmpFileInfo, err = tmpFile.Stat()
+		if err != nil {
+			tmpFile.Close()
+			b.Fatal(err)
+		}
+
+		tmpFile.Close()
+		err = os.Remove(tmpFile.Name())
+		if err != nil {
+			b.Fatal(err)
+		}
+
+		assert.Equal(b, tmpFileInfo.Size(), size, "actual size does not match preallocation size")
 	}
-
-	err = WriteSeeker(tmpFile, size)
-	if err != nil {
-		b.Fatal(err)
-	}
-
-	tmpFileInfo, err = tmpFile.Stat()
-	if err != nil {
-		b.Fatal(err)
-	}
-
-	err = os.Remove(tmpFile.Name())
-	if err != nil {
-		b.Fatal(err)
-	}
-
-	assert.Equal(b, tmpFileInfo.Size(), size, "actual size does not match preallocation size")
 }
