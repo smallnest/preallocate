@@ -1,4 +1,4 @@
-module git.sr.ht/~tslocum/preallocate
+module github.com/smallnest/preallocate
 
 go 1.12
 
